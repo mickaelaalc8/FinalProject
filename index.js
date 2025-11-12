@@ -1,30 +1,30 @@
 require('dotenv').config(); // Load environment variables from .env
 const mongoose = require('mongoose');
-  const express = require('express');
-  const { body, validationResult } = require('express-validator'); 
-  const app = express();
+const express = require('express');
+const { body, validationResult } = require('express-validator'); 
+const app = express();
 
-  // Middleware: Required to parse incoming JSON request bodies
-  app.use(express.json());
+// Middleware: Required to parse incoming JSON request bodies
+app.use(express.json());
 
-  // --- Helper Functions ---
+// --- Helper Functions ---
 
-  // Generates a random number and takes a substring of the desired length
-  function generateRandomDigits(length) {
-      let result = '';
-      for (let i = 0; i < length; i++) {
-          result += Math.floor(Math.random() * 10).toString();
-      }
-      return result;
-  }
+// Generates a random number and takes a substring of the desired length
+function generateRandomDigits(length) {
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += Math.floor(Math.random() * 10).toString();
+    }
+    return result;
+}
 
-  // Generates Student Number in XX-XXXXX-XXX format
-  function generateStudentNo() {
-      const block1 = generateRandomDigits(2); // XX
-      const block2 = generateRandomDigits(5); // XXXXX
-      const block3 = generateRandomDigits(3); // XXX
-      return `${block1}-${block2}-${block3}`;
-  }
+// Generates Student Number in XX-XXXXX-XXX format
+function generateStudentNo() {
+    const block1 = generateRandomDigits(2); // XX
+    const block2 = generateRandomDigits(5); // XXXXX
+    const block3 = generateRandomDigits(3); // XXX
+    return `${block1}-${block2}-${block3}`;
+}
 
 // --- 1. Mongoose Schema and Model ---
 
@@ -74,79 +74,75 @@ const studentSchema = new mongoose.Schema({
 // Create the Model, which will be used to interact with the 'students' collection in MongoDB
 const Student = mongoose.model('Student', studentSchema);
 
-// NOTE: You must have already required mongoose at the top of the file:
-// const mongoose = require('mongoose');
+
+// --- 2. Express-Validator Middleware Array (Validation Rules) ---
+const studentNoPattern = /^\d{2}-\d{5}-\d{3}$/; 
+
+// Validation rules for POST and PUT (all fields required)
+const validateStudentRules = [
+    body('studentNo')
+        .optional() 
+        .matches(studentNoPattern)
+        .withMessage('Student Number must be a string in the format XX-XXXXX-XXX (e.g., 23-12902-588).'),
+
+    body('name')
+        .isString()
+        .isLength({ min: 3 })
+        .withMessage('Name must be at least 3 characters long.'),
+    body('course')
+        .isIn(['CS', 'IT', 'BA', 'ENG'])
+        .withMessage('Course must be one of: CS, IT, BA, or ENG.'),
+    body('yearLevel')
+        .isInt({ min: 1, max: 4 })
+        .withMessage('Year level must be an integer between 1 and 4.'),
+    body('section')
+        .isString()
+        .isLength({ min: 1, max: 10 })
+        .withMessage('Section is required and must be between 1 and 10 characters.'),
+    body('email')
+        .isEmail()
+        .withMessage('Must be a valid email address.'),
+];
+
+// Validation rules for PATCH (all fields are optional, but if present, they must be valid)
+const validatePartialUpdateRules = [
+    body('name')
+        .optional()
+        .isString()
+        .isLength({ min: 3 })
+        .withMessage('Name must be at least 3 characters long.'),
+    body('course')
+        .optional()
+        .isIn(['CS', 'IT', 'BA', 'ENG'])
+        .withMessage('Course must be one of: CS, IT, BA, or ENG.'),
+    body('yearLevel')
+        .optional()
+        .isInt({ min: 1, max: 4 })
+        .withMessage('Year level must be an integer between 1 and 4.'),
+    body('section')
+        .optional()
+        .isString()
+        .isLength({ min: 1, max: 10 })
+        .withMessage('Section must be between 1 and 10 characters.'),
+    body('email')
+        .optional()
+        .isEmail()
+        .withMessage('Must be a valid email address.'),
+];
+
+// --- 3. Validation Result Handler Middleware ---
+const checkValidation = (req, res, next) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    next();
+};
 
 
-  // --- 2. Express-Validator Middleware Array (Validation Rules) ---
-  const studentNoPattern = /^\d{2}-\d{5}-\d{3}$/; 
-
-  // Validation rules for POST and PUT (all fields required)
-  const validateStudentRules = [
-      body('studentNo')
-          .optional() 
-          .matches(studentNoPattern)
-          .withMessage('Student Number must be a string in the format XX-XXXXX-XXX (e.g., 23-12902-588).'),
-
-      body('name')
-          .isString()
-          .isLength({ min: 3 })
-          .withMessage('Name must be at least 3 characters long.'),
-      body('course')
-          .isIn(['CS', 'IT', 'BA', 'ENG'])
-          .withMessage('Course must be one of: CS, IT, BA, or ENG.'),
-      body('yearLevel')
-          .isInt({ min: 1, max: 4 })
-          .withMessage('Year level must be an integer between 1 and 4.'),
-      body('section')
-          .isString()
-          .isLength({ min: 1, max: 10 })
-          .withMessage('Section is required and must be between 1 and 10 characters.'),
-      body('email')
-          .isEmail()
-          .withMessage('Must be a valid email address.'),
-  ];
-
-  // Validation rules for PATCH (all fields are optional, but if present, they must be valid)
-  const validatePartialUpdateRules = [
-      body('name')
-          .optional()
-          .isString()
-          .isLength({ min: 3 })
-          .withMessage('Name must be at least 3 characters long.'),
-      body('course')
-          .optional()
-          .isIn(['CS', 'IT', 'BA', 'ENG'])
-          .withMessage('Course must be one of: CS, IT, BA, or ENG.'),
-      body('yearLevel')
-          .optional()
-          .isInt({ min: 1, max: 4 })
-          .withMessage('Year level must be an integer between 1 and 4.'),
-      body('section')
-          .optional()
-          .isString()
-          .isLength({ min: 1, max: 10 })
-          .withMessage('Section must be between 1 and 10 characters.'),
-      body('email')
-          .optional()
-          .isEmail()
-          .withMessage('Must be a valid email address.'),
-  ];
-
-  // --- 3. Validation Result Handler Middleware ---
-  const checkValidation = (req, res, next) => {
-      const errors = validationResult(req);
-      if (!errors.isEmpty()) {
-          return res.status(400).json({ errors: errors.array() });
-      }
-      next();
-  };
-
-
-  // ==============================================================================
-  // 4. CORE CRUD ROUTES
-  // ==============================================================================
-
+// ==============================================================================
+// 4. CORE CRUD ROUTES
+// ==============================================================================
 
 // --- GET /api/students: Retrieve all students ---
 app.get('/api/students', async (req, res) => {
@@ -192,8 +188,8 @@ app.get('/api/students/filter', async (req, res) => {
     }
 });
 
-
- // --- GET /api/students/search?q=...: Search by name or email ---
+//hello
+// --- GET /api/students/search?q=...: Search by name or email ---
 app.get('/api/students/search', async (req, res) => {
     try {
         const query = req.query.q;
@@ -224,7 +220,7 @@ app.get('/api/students/search', async (req, res) => {
 });
 
 
-  // --- GET /api/students/:studentNo: Retrieve a single student ---
+// --- GET /api/students/:studentNo: Retrieve a single student ---
 // --- GET /api/students/:studentNo: Retrieve a single student ---
 app.get('/api/students/:studentNo', async (req, res) => {
     try {
@@ -283,7 +279,7 @@ app.post('/api/students', validateStudentRules, checkValidation, async (req, res
     }
 });
 
- // --- PUT /api/students/:studentNo: Update an existing student (Full replacement) ---
+// --- PUT /api/students/:studentNo: Update an existing student (Full replacement) ---
 app.put('/api/students/:studentNo', validateStudentRules, checkValidation, async (req, res) => {
     try {
         // Find by studentNo and update with the entire req.body
@@ -334,8 +330,6 @@ app.patch('/api/students/:studentNo', validatePartialUpdateRules, checkValidatio
 });
 
 
-// Remember to define 'const Student = mongoose.model('Student', studentSchema);' earlier in the file.
-
 // --- DELETE /api/students/:studentNo: Delete a student ---
 app.delete('/api/students/:studentNo', async (req, res) => {
     try {
@@ -358,22 +352,40 @@ app.delete('/api/students/:studentNo', async (req, res) => {
 });
 
 
-  // --- Server Listener ---
-// --- Server Listener & MongoDB Connection ---
+// --- Vercel/Root Route (Optional, but helps prevent 404s on the root path) ---
+app.get('/', (req, res) => {
+    res.send({ message: 'Student API is running. Access /api/students for data.' });
+});
+
+
+// --- Server Listener & MongoDB Connection (Updated for Vercel/Local) ---
 const PORT = process.env.PORT || 3000;
 const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_URI) {
-    console.error('FATAL ERROR: MONGODB_URI is not defined in environment variables.');
-    process.exit(1);
+// We only listen for connections locally; Vercel handles the listener itself.
+if (process.env.VERCEL_ENV !== 'production') {
+    if (!MONGODB_URI) {
+        console.error('FATAL ERROR: MONGODB_URI is not defined in environment variables.');
+        // Don't exit here for Vercel builds, only local testing
+        if (!process.env.VERCEL_ENV) {
+            process.exit(1);
+        }
+    }
+    
+    mongoose.connect(MONGODB_URI)
+        .then(() => {
+            console.log('Connected to MongoDB successfully!');
+            app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}/api/students`));
+        })
+        .catch(err => {
+            console.error('Could not connect to MongoDB:', err.message);
+            // Don't exit here for Vercel builds
+            if (!process.env.VERCEL_ENV) {
+                 process.exit(1);
+            }
+        });
 }
 
-mongoose.connect(MONGODB_URI)
-    .then(() => {
-        console.log('Connected to MongoDB successfully!');
-        app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}/api/students`));
-    })
-    .catch(err => {
-        console.error('Could not connect to MongoDB:', err.message);
-        process.exit(1);
-    });
+// *** CRITICAL FIX FOR VERCEL DEPLOYMENT ***
+// Vercel expects an Express app to be exported for the serverless function.
+module.exports = app;
